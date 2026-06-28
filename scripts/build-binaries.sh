@@ -12,13 +12,14 @@
 #   --skip-deps          Skip installing cross-platform dependencies
 #   --skip-build         Skip the package build
 #   --offline-model-data Build with bundled model data instead of refreshing it
-#   --platform <name>    Build only for specified platform (darwin-arm64, darwin-x64, linux-x64, linux-arm64, windows-x64, windows-arm64)
+#   --platform <name>    Build only for specified platform (darwin-arm64, darwin-x64, darwin-universal, linux-x64, linux-arm64, windows-x64, windows-arm64)
 #   --out <dir>          Output directory (default: packages/coding-agent/binaries)
 #
 # Output:
 #   packages/coding-agent/binaries/
 #     pi-darwin-arm64.tar.gz
 #     pi-darwin-x64.tar.gz
+#     pi-darwin-universal.tar.gz
 #     pi-linux-x64.tar.gz
 #     pi-linux-arm64.tar.gz
 #     pi-windows-x64.zip
@@ -78,11 +79,11 @@ done
 # Validate platform if specified
 if [[ -n "$PLATFORM" ]]; then
     case "$PLATFORM" in
-        darwin-arm64|darwin-x64|linux-x64|linux-arm64|windows-x64|windows-arm64)
+        darwin-arm64|darwin-x64|darwin-universal|linux-x64|linux-arm64|windows-x64|windows-arm64)
             ;;
         *)
             echo "Invalid platform: $PLATFORM"
-            echo "Valid platforms: darwin-arm64, darwin-x64, linux-x64, linux-arm64, windows-x64, windows-arm64"
+            echo "Valid platforms: darwin-arm64, darwin-x64, darwin-universal, linux-x64, linux-arm64, windows-x64, windows-arm64"
             exit 1
             ;;
     esac
@@ -163,22 +164,28 @@ BINARY_NAME="pi"
 ARCHIVE_PREFIX="pi"
 if [[ "$HEADLESS" == "true" ]]; then
     ENTRYPOINT="./dist/bun/headless-cli.js"
-    BINARY_NAME="pi-headless"
+    BINARY_NAME="pi"
     ARCHIVE_PREFIX="pi-headless"
 fi
 
 # Clean previous builds
 rm -rf "$OUTPUT_DIR"
-mkdir -p "$OUTPUT_DIR"/{darwin-arm64,darwin-x64,linux-x64,linux-arm64,windows-x64,windows-arm64}
+mkdir -p "$OUTPUT_DIR"/{darwin-arm64,darwin-x64,darwin-universal,linux-x64,linux-arm64,windows-x64,windows-arm64}
+
+UNIVERSAL_DARWIN=false
 
 # Determine which platforms to build
-if [[ -n "$PLATFORM" ]]; then
-    PLATFORMS=("$PLATFORM")
+if [[ "$PLATFORM" == "darwin-universal" ]]; then
+    UNIVERSAL_DARWIN=true
+    BUILD_PLATFORMS=(darwin-arm64 darwin-x64)
+elif [[ -n "$PLATFORM" ]]; then
+    BUILD_PLATFORMS=("$PLATFORM")
 else
-    PLATFORMS=(darwin-arm64 darwin-x64 linux-x64 linux-arm64 windows-x64 windows-arm64)
+    BUILD_PLATFORMS=(darwin-arm64 darwin-x64 linux-x64 linux-arm64 windows-x64 windows-arm64)
 fi
+ARCHIVE_PLATFORMS=("${BUILD_PLATFORMS[@]}")
 
-for platform in "${PLATFORMS[@]}"; do
+for platform in "${BUILD_PLATFORMS[@]}"; do
     echo "Building for $platform..."
     bun_target="bun-$platform"
     if [[ "$platform" == *-x64 ]]; then
@@ -201,7 +208,7 @@ done
 echo "==> Creating release archives..."
 
 # Copy shared files to each platform directory
-for platform in "${PLATFORMS[@]}"; do
+for platform in "${BUILD_PLATFORMS[@]}"; do
     cp package.json "$OUTPUT_DIR/$platform/"
     cp ../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm "$OUTPUT_DIR/$platform/"
 
@@ -267,10 +274,33 @@ for platform in "${PLATFORMS[@]}"; do
     fi
 done
 
+if [[ "$UNIVERSAL_DARWIN" == "true" ]]; then
+    if ! command -v lipo >/dev/null 2>&1; then
+        echo "lipo is required to build darwin-universal"
+        exit 1
+    fi
+
+    rm -rf "$OUTPUT_DIR/darwin-universal"
+    cp -R "$OUTPUT_DIR/darwin-arm64" "$OUTPUT_DIR/darwin-universal"
+    lipo -create \
+        "$OUTPUT_DIR/darwin-arm64/$BINARY_NAME" \
+        "$OUTPUT_DIR/darwin-x64/$BINARY_NAME" \
+        -output "$OUTPUT_DIR/darwin-universal/$BINARY_NAME"
+
+    if [[ "$HEADLESS" == "false" ]]; then
+        cp -r ../../node_modules/@mariozechner/clipboard-darwin-x64 "$OUTPUT_DIR/darwin-universal/node_modules/@mariozechner/"
+        mkdir -p "$OUTPUT_DIR/darwin-universal/native/darwin/prebuilds/darwin-x64"
+        cp ../tui/native/darwin/prebuilds/darwin-x64/darwin-modifiers.node "$OUTPUT_DIR/darwin-universal/native/darwin/prebuilds/darwin-x64/"
+    fi
+
+    rm -rf "$OUTPUT_DIR/darwin-arm64" "$OUTPUT_DIR/darwin-x64"
+    ARCHIVE_PLATFORMS=(darwin-universal)
+fi
+
 # Create archives
 cd "$OUTPUT_DIR"
 
-for platform in "${PLATFORMS[@]}"; do
+for platform in "${ARCHIVE_PLATFORMS[@]}"; do
     if [[ "$platform" == windows-* ]]; then
         # Windows (zip)
         echo "Creating $ARCHIVE_PREFIX-$platform.zip..."
@@ -284,7 +314,7 @@ done
 
 # Extract archives for easy local testing
 echo "==> Extracting archives for testing..."
-for platform in "${PLATFORMS[@]}"; do
+for platform in "${ARCHIVE_PLATFORMS[@]}"; do
     rm -rf "$platform"
     if [[ "$platform" == windows-* ]]; then
         mkdir -p "$platform" && (cd "$platform" && unzip -q ../$ARCHIVE_PREFIX-$platform.zip)
@@ -299,7 +329,7 @@ echo "Archives available in $OUTPUT_DIR/"
 ls -lh *.tar.gz *.zip 2>/dev/null || true
 echo ""
 echo "Extracted directories for testing:"
-for platform in "${PLATFORMS[@]}"; do
+for platform in "${ARCHIVE_PLATFORMS[@]}"; do
     if [[ "$platform" == windows-* ]]; then
         echo "  $OUTPUT_DIR/$platform/$BINARY_NAME.exe"
     else
