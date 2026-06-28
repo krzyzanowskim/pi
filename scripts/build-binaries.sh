@@ -4,9 +4,10 @@
 # Mirrors .github/workflows/build-binaries.yml
 #
 # Usage:
-#   ./scripts/build-binaries.sh [--skip-install] [--skip-deps] [--skip-build] [--offline-model-data] [--platform <platform>] [--out <dir>]
+#   ./scripts/build-binaries.sh [--headless] [--skip-install] [--skip-deps] [--skip-build] [--offline-model-data] [--platform <platform>] [--out <dir>]
 #
 # Options:
+#   --headless           Build non-interactive pi-headless binaries
 #   --skip-install       Skip npm ci
 #   --skip-deps          Skip installing cross-platform dependencies
 #   --skip-build         Skip the package build
@@ -22,11 +23,14 @@
 #     pi-linux-arm64.tar.gz
 #     pi-windows-x64.zip
 #     pi-windows-arm64.zip
+#
+#   With --headless, archives are named pi-headless-<platform>.
 
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+HEADLESS=false
 SKIP_INSTALL=false
 SKIP_DEPS=false
 SKIP_BUILD=false
@@ -36,6 +40,10 @@ OUTPUT_DIR=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --headless)
+            HEADLESS=true
+            shift
+            ;;
         --skip-install)
             SKIP_INSTALL=true
             shift
@@ -94,7 +102,9 @@ else
     echo "==> Skipping npm ci (--skip-install)"
 fi
 
-if [[ "$SKIP_DEPS" == "false" ]]; then
+if [[ "$SKIP_DEPS" == "false" && "$HEADLESS" == "true" ]]; then
+    echo "==> Skipping cross-platform native bindings (--headless)"
+elif [[ "$SKIP_DEPS" == "false" ]]; then
     echo "==> Installing cross-platform native bindings..."
     CLIPBOARD_VERSION=$(node -p "require('./packages/coding-agent/package.json').optionalDependencies['@mariozechner/clipboard']")
     # npm ci only installs optional deps for the current platform. Install the
@@ -148,6 +158,15 @@ fi
 echo "==> Building binaries..."
 cd packages/coding-agent
 
+ENTRYPOINT="./dist/bun/cli.js"
+BINARY_NAME="pi"
+ARCHIVE_PREFIX="pi"
+if [[ "$HEADLESS" == "true" ]]; then
+    ENTRYPOINT="./dist/bun/headless-cli.js"
+    BINARY_NAME="pi-headless"
+    ARCHIVE_PREFIX="pi-headless"
+fi
+
 # Clean previous builds
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"/{darwin-arm64,darwin-x64,linux-x64,linux-arm64,windows-x64,windows-arm64}
@@ -173,9 +192,9 @@ for platform in "${PLATFORMS[@]}"; do
     # Disable cwd bunfig.toml autoload so project preload scripts cannot crash the
     # standalone binary before pi starts (see #7684).
     if [[ "$platform" == windows-* ]]; then
-        bun build --compile --no-compile-autoload-bunfig --target="$bun_target" ./dist/bun/cli.js ./src/utils/image-resize-worker.ts --outfile "$OUTPUT_DIR/$platform/pi.exe"
+        bun build --compile --no-compile-autoload-bunfig --target="$bun_target" "$ENTRYPOINT" ./src/utils/image-resize-worker.ts --outfile "$OUTPUT_DIR/$platform/$BINARY_NAME.exe"
     else
-        bun build --compile --no-compile-autoload-bunfig --target="$bun_target" ./dist/bun/cli.js ./src/utils/image-resize-worker.ts --outfile "$OUTPUT_DIR/$platform/pi"
+        bun build --compile --no-compile-autoload-bunfig --target="$bun_target" "$ENTRYPOINT" ./src/utils/image-resize-worker.ts --outfile "$OUTPUT_DIR/$platform/$BINARY_NAME"
     fi
 done
 
@@ -189,11 +208,17 @@ for platform in "${PLATFORMS[@]}"; do
     cp ../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm "$OUTPUT_DIR/$platform/"
     mkdir -p "$OUTPUT_DIR/$platform/theme"
     cp dist/modes/interactive/theme/*.json "$OUTPUT_DIR/$platform/theme/"
-    mkdir -p "$OUTPUT_DIR/$platform/assets"
-    cp dist/modes/interactive/assets/* "$OUTPUT_DIR/$platform/assets/"
-    cp -r dist/core/export-html "$OUTPUT_DIR/$platform/"
+    if [[ "$HEADLESS" == "false" ]]; then
+        mkdir -p "$OUTPUT_DIR/$platform/assets"
+        cp dist/modes/interactive/assets/* "$OUTPUT_DIR/$platform/assets/"
+        cp -r dist/core/export-html "$OUTPUT_DIR/$platform/"
+    fi
     cp -r docs "$OUTPUT_DIR/$platform/"
     cp -r examples "$OUTPUT_DIR/$platform/"
+
+    if [[ "$HEADLESS" == "true" ]]; then
+        continue
+    fi
 
     case "$platform" in
         darwin-arm64)
@@ -249,12 +274,12 @@ cd "$OUTPUT_DIR"
 for platform in "${PLATFORMS[@]}"; do
     if [[ "$platform" == windows-* ]]; then
         # Windows (zip)
-        echo "Creating pi-$platform.zip..."
-        (cd "$platform" && zip -r ../pi-$platform.zip .)
+        echo "Creating $ARCHIVE_PREFIX-$platform.zip..."
+        (cd "$platform" && zip -r ../$ARCHIVE_PREFIX-$platform.zip .)
     else
         # Unix platforms (tar.gz) - use wrapper directory for mise compatibility
-        echo "Creating pi-$platform.tar.gz..."
-        mv "$platform" pi && tar -czf pi-$platform.tar.gz pi && mv pi "$platform"
+        echo "Creating $ARCHIVE_PREFIX-$platform.tar.gz..."
+        mv "$platform" "$ARCHIVE_PREFIX" && tar -czf $ARCHIVE_PREFIX-$platform.tar.gz "$ARCHIVE_PREFIX" && mv "$ARCHIVE_PREFIX" "$platform"
     fi
 done
 
@@ -263,9 +288,9 @@ echo "==> Extracting archives for testing..."
 for platform in "${PLATFORMS[@]}"; do
     rm -rf "$platform"
     if [[ "$platform" == windows-* ]]; then
-        mkdir -p "$platform" && (cd "$platform" && unzip -q ../pi-$platform.zip)
+        mkdir -p "$platform" && (cd "$platform" && unzip -q ../$ARCHIVE_PREFIX-$platform.zip)
     else
-        tar -xzf pi-$platform.tar.gz && mv pi "$platform"
+        tar -xzf $ARCHIVE_PREFIX-$platform.tar.gz && mv "$ARCHIVE_PREFIX" "$platform"
     fi
 done
 
@@ -277,8 +302,8 @@ echo ""
 echo "Extracted directories for testing:"
 for platform in "${PLATFORMS[@]}"; do
     if [[ "$platform" == windows-* ]]; then
-        echo "  $OUTPUT_DIR/$platform/pi.exe"
+        echo "  $OUTPUT_DIR/$platform/$BINARY_NAME.exe"
     else
-        echo "  $OUTPUT_DIR/$platform/pi"
+        echo "  $OUTPUT_DIR/$platform/$BINARY_NAME"
     fi
 done

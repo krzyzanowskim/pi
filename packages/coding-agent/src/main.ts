@@ -61,6 +61,7 @@ import { SettingsManager } from "./core/settings-manager.ts";
 import { printTimings, resetTimings, time } from "./core/timings.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "./core/trust-manager.ts";
 import { builtInExtensions } from "./extensions/index.ts";
+import { HEADLESS_UNSUPPORTED_MESSAGE, isHeadlessMetadataCommand, isHeadlessRuntime } from "./headless.ts";
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.ts";
 import { initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.ts";
@@ -629,6 +630,10 @@ export async function main(args: string[], options?: MainOptions) {
 	}
 
 	let appMode = resolveAppMode(parsed, process.stdin.isTTY, process.stdout.isTTY);
+	if (isHeadlessRuntime() && appMode === "interactive" && !isHeadlessMetadataCommand(parsed)) {
+		console.error(chalk.red(`Error: ${HEADLESS_UNSUPPORTED_MESSAGE}`));
+		process.exit(1);
+	}
 	const shouldTakeOverStdout = appMode !== "interactive" && !isPlainRuntimeMetadataCommand(parsed);
 	if (shouldTakeOverStdout) {
 		takeOverStdout();
