@@ -873,6 +873,67 @@ export function setRegisteredThemes(themes: Theme[]): void {
 	}
 }
 
+export function initHeadlessTheme(): void {
+	const fgColors: Record<ThemeColor, string | number> = {
+		accent: "",
+		border: "",
+		borderAccent: "",
+		borderMuted: "",
+		success: "",
+		error: "",
+		warning: "",
+		muted: "",
+		dim: "",
+		text: "",
+		thinkingText: "",
+		userMessageText: "",
+		customMessageText: "",
+		customMessageLabel: "",
+		toolTitle: "",
+		toolOutput: "",
+		mdHeading: "",
+		mdLink: "",
+		mdLinkUrl: "",
+		mdCode: "",
+		mdCodeBlock: "",
+		mdCodeBlockBorder: "",
+		mdQuote: "",
+		mdQuoteBorder: "",
+		mdHr: "",
+		mdListBullet: "",
+		toolDiffAdded: "",
+		toolDiffRemoved: "",
+		toolDiffContext: "",
+		syntaxComment: "",
+		syntaxKeyword: "",
+		syntaxFunction: "",
+		syntaxVariable: "",
+		syntaxString: "",
+		syntaxNumber: "",
+		syntaxType: "",
+		syntaxOperator: "",
+		syntaxPunctuation: "",
+		thinkingOff: "",
+		thinkingMinimal: "",
+		thinkingLow: "",
+		thinkingMedium: "",
+		thinkingHigh: "",
+		thinkingXhigh: "",
+		bashMode: "",
+	};
+	const bgColors: Record<ThemeBg, string | number> = {
+		selectedBg: "",
+		userMessageBg: "",
+		customMessageBg: "",
+		toolPendingBg: "",
+		toolSuccessBg: "",
+		toolErrorBg: "",
+	};
+	setGlobalTheme(new Theme(fgColors, bgColors, "256color", { name: "headless" }));
+	currentThemeName = "headless";
+	stopThemeWatcher();
+}
+
 export function initTheme(themeName?: string, enableWatcher: boolean = false): void {
 	const name = themeName ?? getDefaultTheme();
 	currentThemeName = name;

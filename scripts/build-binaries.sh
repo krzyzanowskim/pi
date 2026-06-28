@@ -203,22 +203,21 @@ echo "==> Creating release archives..."
 # Copy shared files to each platform directory
 for platform in "${PLATFORMS[@]}"; do
     cp package.json "$OUTPUT_DIR/$platform/"
-    cp README.md "$OUTPUT_DIR/$platform/"
-    cp CHANGELOG.md "$OUTPUT_DIR/$platform/"
     cp ../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm "$OUTPUT_DIR/$platform/"
-    mkdir -p "$OUTPUT_DIR/$platform/theme"
-    cp dist/modes/interactive/theme/*.json "$OUTPUT_DIR/$platform/theme/"
-    if [[ "$HEADLESS" == "false" ]]; then
-        mkdir -p "$OUTPUT_DIR/$platform/assets"
-        cp dist/modes/interactive/assets/* "$OUTPUT_DIR/$platform/assets/"
-        cp -r dist/core/export-html "$OUTPUT_DIR/$platform/"
-    fi
-    cp -r docs "$OUTPUT_DIR/$platform/"
-    cp -r examples "$OUTPUT_DIR/$platform/"
 
     if [[ "$HEADLESS" == "true" ]]; then
         continue
     fi
+
+    cp README.md "$OUTPUT_DIR/$platform/"
+    cp CHANGELOG.md "$OUTPUT_DIR/$platform/"
+    mkdir -p "$OUTPUT_DIR/$platform/theme"
+    cp dist/modes/interactive/theme/*.json "$OUTPUT_DIR/$platform/theme/"
+    mkdir -p "$OUTPUT_DIR/$platform/assets"
+    cp dist/modes/interactive/assets/* "$OUTPUT_DIR/$platform/assets/"
+    cp -r dist/core/export-html "$OUTPUT_DIR/$platform/"
+    cp -r docs "$OUTPUT_DIR/$platform/"
+    cp -r examples "$OUTPUT_DIR/$platform/"
 
     case "$platform" in
         darwin-arm64)

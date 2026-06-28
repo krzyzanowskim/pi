@@ -64,7 +64,7 @@ import { builtInExtensions } from "./extensions/index.ts";
 import { HEADLESS_UNSUPPORTED_MESSAGE, isHeadlessMetadataCommand, isHeadlessRuntime } from "./headless.ts";
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.ts";
-import { initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.ts";
+import { initHeadlessTheme, initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.ts";
 import { handleConfigCommand, handlePackageCommand } from "./package-manager-cli.ts";
 import { isLocalPath, normalizePath, resolvePath } from "./utils/paths.ts";
 import { cleanupWindowsSelfUpdateQuarantine } from "./utils/windows-self-update.ts";
@@ -883,7 +883,11 @@ export async function main(args: string[], options?: MainOptions) {
 		stdinContent,
 	);
 	time("prepareInitialMessage");
-	initTheme(settingsManager.getTheme(), appMode === "interactive");
+	if (isHeadlessRuntime()) {
+		initHeadlessTheme();
+	} else {
+		initTheme(settingsManager.getTheme(), appMode === "interactive");
+	}
 	time("initTheme");
 
 	// Show deprecation warnings in interactive mode
