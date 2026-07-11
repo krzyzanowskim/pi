@@ -919,6 +919,7 @@ export function initHeadlessTheme(): void {
 		thinkingMedium: "",
 		thinkingHigh: "",
 		thinkingXhigh: "",
+		thinkingMax: "",
 		bashMode: "",
 	};
 	const bgColors: Record<ThemeBg, string | number> = {
