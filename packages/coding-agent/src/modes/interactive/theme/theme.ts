@@ -886,6 +886,7 @@ export function initHeadlessTheme(): void {
 		dim: "",
 		text: "",
 		thinkingText: "",
+		searchMatchText: "",
 		userMessageText: "",
 		customMessageText: "",
 		customMessageLabel: "",
@@ -924,6 +925,8 @@ export function initHeadlessTheme(): void {
 	};
 	const bgColors: Record<ThemeBg, string | number> = {
 		selectedBg: "",
+		scrollbarThumb: "",
+		searchMatchBg: "",
 		userMessageBg: "",
 		customMessageBg: "",
 		toolPendingBg: "",
